@@ -1,62 +1,42 @@
 global numRigheDataset;
 global numClusters;
-global indexCanzone;
 
-dataset = readmatrix('dataset.csv'); % carico il dataset nella matrice dataset
-%dataset = readtable('dataset.csv');
-%dataset(1,:) = []; % rimuove la prima riga (intestazione) dal dataset
-[numRigheDataset, numColonneDataset] = size(dataset);
-numClusters = 5;
-indexCanzone = 1;
-numGeneri = 3;
+dataset = readmatrix('dataset.csv'); % Carica il dataset con dati numerici
+datasetStringFormat = readtable('dataset.csv'); % Carica il dataset mantenendo i formati originali (per visualizzazione)
+[numRigheDataset, numColonneDataset] = size(dataset); % Ottiene le dimensioni del dataset
+numClusters = 5; % Imposta il numero di cluster desiderato
+
+% Applica l'algoritmo K-means e aggiorna il dataset
 dataset = createCluster(dataset);
+
+% Aggiorna il file CSV con i risultati del clustering
 updateDataset(dataset);
 
+% Funzione per creare i cluster utilizzando K-means
 function dataset = createCluster(dataset)
-global numRigheDataset;
-global numClusters;
+    global numRigheDataset;
+    global numClusters;
 
-%VD = zeros(2,numRigheDataset);
+    % Estrae le features (Valence ed Energy)
+    VD = zeros(numRigheDataset, 2); 
+    VD(:,1) = dataset(:,8); % Carica la Valence nella matrice VD
+    VD(:,2) = dataset(:,7); % Carica l'Energy nella matrice VD
 
-for i=1:numRigheDataset
-    VD(i,1) = dataset(i,8); % carico la valence nella matrice VD
-    VD(i,2) = dataset(i,7); % carico l'energy nella matrice VD
-end
+    % Applica l'algoritmo K-means
+    [idx,C,SSE] = kmeans(VD, numClusters); 
+    % idx: indice del cluster per ogni punto dati
+    % C: centroidi dei cluster
+    % SSE: somma degli errori al quadrato
 
-%VD = table2array(VD);
-rng(1);
-[idx,C,SSE] = kmeans(VD, numClusters); %ricavo idx e C
-% 2 = numero di cluster
-% C = matrice che contiene la locazione del centroide
-% idx = vettore che contiene degli indici (1 o 2): ogni indice e' associato
-% ad una canzone e ne indica il cluster di appartenenza
-%(1 = cluster canzoni positive; 2 = cluster canzoni negative)
+    % Aggiunge l'indice del cluster al dataset
+    VD = [VD idx]; 
+    dataset = [dataset idx];
 
-VD = [VD idx]; % aggiungo colonna dei cluster alla matrice
-createClusterImage(VD, C);
-dataset = [dataset idx];
+    % Visualizza i cluster
+    createClusterImage(VD, C);
 
-%disp("cluster = "+C);
-
-for i=1:size(C)
-    SSE1 = computeSSE(dataset, C, VD, i);
-   % disp("cluster = "+C);
-    disp("SSE1 = "+SSE1);
-end
-
-disp("SSE2 = "+SSE);
-end
-
-function SSE = computeSSE(dataset, C, VD, clusterIndex)
-    % Estrai i punti appartenenti al cluster
-    idx = VD(:,3) == clusterIndex;
-    clusterPoints = VD(idx, :);
-
-    % Calcola le distanze euclidee tra i punti del cluster e il centroide
-    distances = pdist2(clusterPoints(:, 1:2), C(clusterIndex, :));
-
-    % Calcola la somma dei quadrati delle distanze
-    SSE = sum(distances.^2);
+    % Stampa l'SSE
+    disp("SSE2 = "+SSE);
 end
 
 function createClusterImage(VD, C)

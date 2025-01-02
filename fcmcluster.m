@@ -1,64 +1,79 @@
+% Caricamento del dataset
 global numRigheDataset;
 global numClusters;
-global indexCanzone;
 
-dataset = readmatrix('dataset.csv'); % carico il dataset nella matrice dataset
-%dataset = readtable('dataset.csv');
-%dataset(1,:) = []; % rimuove la prima riga (intestazione) dal dataset
-[numRigheDataset, numColonneDataset] = size(dataset);
-numClusters = 5;
-indexCanzone = 1;
-numGeneri = 3;
-dataset = createCluster(dataset);
+dataset = readmatrix('dataset.csv'); % Carica il dataset dal file CSV
+[numRigheDataset, numColonneDataset] = size(dataset); % Ottiene le dimensioni del dataset
+numClusters = 5; % Definisce il numero di cluster
+
+% Applicazione dell'algoritmo FCM e aggiornamento del dataset
+dataset = createCluster(dataset); 
+
+% Aggiornamento del dataset con i risultati del clustering
 updateDataset(dataset);
 
+% Funzione per creare i cluster utilizzando FCM
 function dataset = createCluster(dataset)
-global numRigheDataset;
-global numClusters;
+    global numRigheDataset;
+    global numClusters;
 
-for i=1:numRigheDataset
-    VD(i,1) = dataset(i,8); % carico la valence nella matrice VD
-    VD(i,2) = dataset(i,7); % carico l'energy nella matrice VD
+    % Estrazione delle features (Valence ed Energy)
+    VD = zeros(numRigheDataset, 2); 
+    VD(:,1) = dataset(:,8); % Carica la Valence nella matrice VD
+    VD(:,2) = dataset(:,7); % Carica l'Energy nella matrice VD
+
+    % Inizializzazione del generatore di numeri casuali per riproducibilità
+    rng(1); 
+
+    % Applicazione dell'algoritmo FCM
+    [C,U]=fcm(VD,numClusters); 
+
+    % Assegnazione dei punti ai cluster in base al massimo grado di appartenenza
+    [~,I]=max(U); 
+    I=I'; 
+    VD =[VD I]; 
+
+    % Visualizzazione dei cluster
+    createClusterImage(VD, C);
+
+    % Calcolo e stampa dell'SSE per ogni cluster
+    for i=1:size(C)
+        SSE = computeSSE(dataset, C, U, VD, i);
+        disp("SSE = "+SSE); 
+    end
+
+    % Aggiunta dell'indice di cluster al dataset
+    dataset = [dataset I]; 
+
+    return;
 end
 
-rng(1);
-[C,U]=fcm(VD,numClusters);
-[~,I]=max(U);
-I=I';
-VD =[VD I];
-createClusterImage(VD, C);
-dataset = [dataset I];
-
-for i=1:size(C)
-    SSE = computeSSE(dataset, C, U, VD, i);
-   % disp("cluster = "+C);
-    disp("SSE = "+SSE);
-end
-
-end
-
+% Funzione per creare il grafico dei cluster
 function createClusterImage(VD, C)
-figure;
+    figure;
 
-global numClusters;
-colors = hsv(numClusters); % Generazione dinamica dei colori
-gscatter(VD(:,1), VD(:,2), VD(:,3), colors, '..'); % Scatter plot con colori dinamici
-hold on;
-plot(C(:,1), C(:,2), 'kx', 'MarkerSize', 5); % Plotta i centroidi come croci nere
-legendStrings = cell(numClusters + 1, 1); % Creazione dinamica delle etichette della legenda
-for i = 1:numClusters
-    legendStrings{i} = sprintf('Cluster %d', i);
+    global numClusters;
+    colors = hsv(numClusters); % Generazione dinamica dei colori
+    gscatter(VD(:,1), VD(:,2), VD(:,3), colors, '..'); % Scatter plot con colori dinamici
+    hold on;
+    plot(C(:,1), C(:,2), 'kx', 'MarkerSize', 5); % Plotta i centroidi come croci nere
+
+    % Creazione delle etichette della legenda
+    legendStrings = cell(numClusters + 1, 1); 
+    for i = 1:numClusters
+        legendStrings{i} = sprintf('Cluster %d', i);
+    end
+    legendStrings{end} = 'Centroids';
+
+    legend(legendStrings, 'Location', 'best');
+
+    title 'Clusters';
+    xlabel 'Valence';
+    ylabel 'Energy';
+    hold off;
 end
-legendStrings{end} = 'Centroids';
 
-legend(legendStrings, 'Location', 'best');
-
-title 'Clusters';
-xlabel 'Valence';
-ylabel 'Energy';
-hold off;
-end
-
+% Funzione per calcolare l'SSE (Sum of Squared Errors) per ogni cluster
 function SSE = computeSSE(dataset, C, U, VD, clusterIndex)
     % Estrai i punti appartenenti al cluster
     idx = VD(:,3) == clusterIndex;
@@ -71,27 +86,10 @@ function SSE = computeSSE(dataset, C, U, VD, clusterIndex)
     SSE = sum(distances.^2);
 end
 
-%{
-function SSE = computeSSE(dataset, C, U, VD, clusterIndex)
-distanzaCVD = 0;
-sommeDistanzeCVD = 0;
-    
-for i=1:size(VD)
-    if VD(i,3) == clusterIndex
-        distanzaCVD = (C(clusterIndex,1) - VD(i,1))^2 - (C(clusterIndex,2)- VD(i,2))^2;
-        sommeDistanzeCVD = sommeDistanzeCVD + distanzaCVD;
-        distanzaCVD = 0;
-    end   
-end
-
-SSE = sommeDistanzeCVD;
-
-end
-%}
-
+% Funzione per aggiornare il dataset con i risultati del clustering
 function updateDataset(dataset)
 
-dataset2 = readtable('dataset.csv');
-dataset2{:,9} = string(dataset(:,11)); %user ratings aggiornati
-writetable(dataset2, 'dataset.csv', 'Delimiter', ';'); % Utilizza il punto e virgola come separatore
+    dataset2 = readtable('dataset.csv'); % Carica il dataset da file
+    dataset2{:,9} = string(dataset(:,11)); % Aggiorna la colonna 9 del dataset con gli indici di cluster
+    writetable(dataset2, 'dataset.csv', 'Delimiter', ';'); % Salva il dataset aggiornato con separatore ';'
 end
